@@ -24,7 +24,7 @@
     <module>org.openhab.automation.jsscriptingnashorn</module>
     <module>org.openhab.automation.jythonscripting</module>
     <module>org.openhab.automation.pidcontroller</module>
-    <module>org.openhab.automation.pwm</module>
+    <!-- <module>org.openhab.automation.pwm</module> -->
     <!-- io -->
     <module>org.openhab.io.homekit</module>
     <module>org.openhab.io.hueemulation</module>
@@ -45,6 +45,7 @@
     <module>org.openhab.transform.xpath</module>
     <module>org.openhab.transform.xslt</module>
     <!-- bindings -->
+    <module>org.openhab.binding.ademco</module>
     <module>org.openhab.binding.adorne</module>
     <module>org.openhab.binding.ahawastecollection</module>
     <module>org.openhab.binding.airgradient</module>
