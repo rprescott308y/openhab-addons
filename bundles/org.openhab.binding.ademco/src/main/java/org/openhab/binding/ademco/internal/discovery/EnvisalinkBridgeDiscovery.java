@@ -1,4 +1,6 @@
-/*Copyright (c) 2010-2020 Contributors to the openHAB project
+/*
+ * Copyright (c) 2010-2025 Contributors to the openHAB project
+ *
  * See the NOTICE file(s) distributed with this work for additional
  * information.
  *
@@ -129,6 +131,7 @@ public class EnvisalinkBridgeDiscovery extends AbstractDiscoveryService {
             logger.warn("No ip configured");
             return;
         } else {
+            // TODO: getAddressCount() is deprecated
             EnvisalinkBridgeDiscovery.timeout = (int) Math
                     .round((subnetInfo.getAddressCount() * CONNECT_TIMEOUT_IN_MS) / 1000.0);
             logger.debug("We have {} of IP to scan through", subnetInfo.getAddressCount());
