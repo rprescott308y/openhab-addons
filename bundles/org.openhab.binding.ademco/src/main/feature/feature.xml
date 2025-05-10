@@ -4,7 +4,7 @@
 
 	<feature name="openhab-binding-ademco" description="Ademco Binding" version="${project.version}">
 		<feature>openhab-runtime-base</feature>
-		<bundle dependency="true">mvn:commons-net/commons-net/3.6</bundle>
+		<bundle dependency="true">mvn:commons-net/commons-net/${commons.net.version}</bundle>
 		<bundle start-level="80">mvn:org.openhab.addons.bundles/org.openhab.binding.ademco/${project.version}</bundle>
 	</feature>
 </features>
