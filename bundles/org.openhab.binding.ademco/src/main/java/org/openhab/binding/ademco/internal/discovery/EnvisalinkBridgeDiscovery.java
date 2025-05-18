@@ -17,6 +17,7 @@ import static org.openhab.binding.ademco.internal.AdemcoConstants.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
@@ -26,17 +27,15 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.net.util.SubnetUtils;
-import org.apache.commons.net.util.SubnetUtils.SubnetInfo;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.binding.ademco.internal.config.EnvisalinkBridgeConfiguration;
 import org.openhab.core.config.discovery.AbstractDiscoveryService;
 import org.openhab.core.config.discovery.DiscoveryResultBuilder;
 import org.openhab.core.config.discovery.DiscoveryService;
-import org.openhab.core.net.NetworkAddressService;
+import org.openhab.core.net.NetUtil;
 import org.openhab.core.thing.ThingTypeUID;
 import org.openhab.core.thing.ThingUID;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,10 +47,9 @@ import org.slf4j.LoggerFactory;
  *
  */
 @Component(service = DiscoveryService.class, immediate = true, configurationPid = "discovery.ademco")
+@NonNullByDefault
 public class EnvisalinkBridgeDiscovery extends AbstractDiscoveryService {
     private final Logger logger = LoggerFactory.getLogger(EnvisalinkBridgeDiscovery.class);
-    private NetworkAddressService networkAddressService;
-    private SubnetInfo subnetInfo = null;
     static final int CONNECT_TIMEOUT_IN_MS = 50;
     static final int ENVISALINK_BRIDGE_PORT = 4025;
     static final int CONNECTION_TIMEOUT = 10;
@@ -84,138 +82,58 @@ public class EnvisalinkBridgeDiscovery extends AbstractDiscoveryService {
         return EnvisalinkBridgeDiscovery.timeout;
     }
 
-    @Reference
-    protected void setNetworkAddressService(NetworkAddressService networkAddressService) {
-        this.networkAddressService = networkAddressService;
-        getSubnetInfo();
-    }
-
-    protected void unsetNetworkAddressService(NetworkAddressService networkAddressService) {
-        this.networkAddressService = null;
-        this.subnetInfo = null;
-    }
-
-    /**
-     * This method will try to discover the subnet info
-     *
-     */
-    void getSubnetInfo() {
-        String ipAddress;
-        String broadCastmask;
-        SubnetUtils subnetUtils;
-        logger.debug("Starting getSubnetInfo.");
-        if (networkAddressService != null) {
-            ipAddress = networkAddressService.getPrimaryIpv4HostAddress();
-            broadCastmask = networkAddressService.getConfiguredBroadcastAddress();
-
-        } else {
-            logger.warn(
-                    "Subnet info is not filled up. Please fill up network info from Configuration->System->Network Settings.");
-            return;
-        }
-
-        if (ipAddress != null) {
-            Integer cidrLength;
-            if (broadCastmask != null) {
-                cidrLength = broadCastMaskToCIDRLength(broadCastmask);
-                subnetUtils = new SubnetUtils(ipAddress + "/" + cidrLength.toString());
-                subnetUtils.setInclusiveHostCount(true);
-            } else {
-                return;
-            }
-            // subnetUtils.setInclusiveHostCount(true);
-            subnetInfo = subnetUtils.getInfo();
-
-        }
-        if (subnetInfo == null) {
-            logger.warn("No ip configured");
-            return;
-        } else {
-            // TODO: getAddressCount() is deprecated
-            EnvisalinkBridgeDiscovery.timeout = (int) Math
-                    .round((subnetInfo.getAddressCount() * CONNECT_TIMEOUT_IN_MS) / 1000.0);
-            logger.debug("We have {} of IP to scan through", subnetInfo.getAddressCount());
-            logger.debug("Host IP: {}", networkAddressService.getPrimaryIpv4HostAddress());
-            logger.debug("Broadcast Address {}", networkAddressService.getConfiguredBroadcastAddress());
-            logger.debug("Low IP {}", subnetInfo.getLowAddress());
-            logger.debug("High IP {}", subnetInfo.getHighAddress());
-        }
-    }
-
-    /**
-     * Easy broadCastMask to CIDR length
-     *
-     * @param broadCastmask
-     * @return CIDR length
-     */
-    private Integer broadCastMaskToCIDRLength(String broadCastmask) {
-        String[] masks = broadCastmask.split("\\.");
-        Integer initial = 32;
-        if (masks.length == 4) {
-            for (Integer i = 0; i < 4; i++) {
-                if (masks[3 - i].equals("255")) {
-                    initial -= 8;
-                }
-            }
-        }
-        return initial;
-    }
-
     /**
      * Method for Bridge Discovery.
      */
     public synchronized void discoverBridge() {
-        if (subnetInfo == null) {
-            logger.warn(
-                    "Subnet info is not filled up. Please fill up network info from Configuration->System->Network Settings.");
-            return;
-        }
         if (this.scanRunning) {
             logger.warn("Scan is already in progress not starting another");
         } else {
             logger.debug("Starting Scan");
             this.scanRunning = true;
         }
-        for (String eachIpAddress : subnetInfo.getAllAddresses()) {
+        for (InetAddress eachIpAddress : NetUtil.getFullRangeOfAddressesToScan()) {
             if (this.scanRunning == false) {
                 break;
             }
             try (Socket socket = new Socket()) {
                 socket.setReuseAddress(true);
                 socket.setReceiveBufferSize(32);
-                socket.connect(new InetSocketAddress(eachIpAddress, ENVISALINK_BRIDGE_PORT), CONNECTION_TIMEOUT);
+                socket.connect(new InetSocketAddress(eachIpAddress.toString(), ENVISALINK_BRIDGE_PORT),
+                        CONNECTION_TIMEOUT);
                 if (socket.isConnected()) {
                     String message = "";
                     socket.setSoTimeout(SO_TIMEOUT);
                     try (BufferedReader input = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                         message = input.readLine();
                     } catch (SocketTimeoutException e) {
-                        logger.debug("discoverBridge(): No Message Read from Socket at [{}] - {}", eachIpAddress,
-                                e.getMessage());
+                        logger.debug("discoverBridge(): No Message Read from Socket at [{}] - {}",
+                                eachIpAddress.toString(), e.getMessage());
                         continue;
                     } catch (Exception e) {
-                        logger.debug("discoverBridge(): Exception Reading from Socket at [{}]! {}", eachIpAddress,
-                                e.toString());
+                        logger.debug("discoverBridge(): Exception Reading from Socket at [{}]! {}",
+                                eachIpAddress.toString(), e.toString());
                         continue;
                     }
 
                     if (message.equals(ENVISALINK_DISCOVERY_RESPONSE)) {
-                        logger.debug("discoverBridge(): Bridge Found - [{}]! Message - '{}'", eachIpAddress, message);
+                        logger.debug("discoverBridge(): Bridge Found - [{}]! Message - '{}'", eachIpAddress.toString(),
+                                message);
                         socket.close();
-                        this.addEnvisalinkBridge(eachIpAddress);
+                        this.addEnvisalinkBridge(eachIpAddress.toString());
                     } else {
                         logger.debug("discoverBridge(): No Response from Connection - [{}]! Message - '{}'",
-                                eachIpAddress, message);
+                                eachIpAddress.toString(), message);
                     }
                 }
             } catch (IllegalArgumentException e) {
                 logger.debug("discoverBridge(): Illegal Argument Exception - {}", e.toString());
             } catch (SocketTimeoutException e) {
-                logger.trace("discoverBridge(): No Connection on Port 4025! [{}]", eachIpAddress);
+                logger.trace("discoverBridge(): No Connection on Port 4025! [{}]", eachIpAddress.toString());
             } catch (SocketException e) {
-                logger.debug("discoverBridge(): Socket Exception! [{}] - {}", eachIpAddress, e.toString());
+                logger.debug("discoverBridge(): Socket Exception! [{}] - {}", eachIpAddress.toString(), e.toString());
             } catch (IOException e) {
-                logger.debug("discoverBridge(): IO Exception! [{}] - {}", eachIpAddress, e.toString());
+                logger.debug("discoverBridge(): IO Exception! [{}] - {}", eachIpAddress.toString(), e.toString());
             } catch (Exception e) {
                 logger.debug("discoverBridge(): Unknown exception caught: {}", e.toString());
             }

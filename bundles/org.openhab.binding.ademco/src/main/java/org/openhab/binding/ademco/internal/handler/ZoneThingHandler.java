@@ -16,6 +16,8 @@ import static org.openhab.binding.ademco.internal.AdemcoConstants.*;
 
 import java.time.ZonedDateTime;
 
+import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.ademco.internal.config.ZoneThingConfiguration;
 import org.openhab.core.library.types.DateTimeType;
 import org.openhab.core.library.types.OnOffType;
@@ -34,6 +36,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author WeeMin Chan - Initial contribution
  */
+@NonNullByDefault
 public class ZoneThingHandler extends BaseThingHandler {
     private Logger logger = LoggerFactory.getLogger(ZoneThingHandler.class);
     private ZoneThingConfiguration config;
@@ -77,7 +80,7 @@ public class ZoneThingHandler extends BaseThingHandler {
     // super.dispose();
     // }
 
-    private PartitionBridgeHandler getPartitionBridgeHandler() {
+    private @Nullable PartitionBridgeHandler getPartitionBridgeHandler() {
         Bridge partitionBridge = this.getBridge();
         if (partitionBridge != null) {
             PartitionBridgeHandler handler = (PartitionBridgeHandler) partitionBridge.getHandler();

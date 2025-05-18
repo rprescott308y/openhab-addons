@@ -13,6 +13,7 @@
 /bundles/org.openhab.automation.pidcontroller/ @fwolter
 /bundles/org.openhab.automation.pwm/ @fwolter
 /bundles/org.openhab.automation.pythonscripting/ @HolgerHees
+/bundles/org.openhab.binding.ademco/ @rprescott308y
 /bundles/org.openhab.binding.adorne/ @theiding
 /bundles/org.openhab.binding.ahawastecollection/ @soenkekueper
 /bundles/org.openhab.binding.airgradient/ @austvik

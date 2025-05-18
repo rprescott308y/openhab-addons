@@ -12,10 +12,13 @@
  */
 package org.openhab.binding.ademco.internal.handler;
 
+import org.eclipse.jdt.annotation.NonNullByDefault;
+
 /**
  * @author WeeMin Chan - Initial contribution
  *
  */
+@NonNullByDefault
 public enum EnvisalinkState {
     INIT,
     GETPASSWORD,

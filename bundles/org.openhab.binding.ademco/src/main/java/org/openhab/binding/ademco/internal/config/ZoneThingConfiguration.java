@@ -12,12 +12,15 @@
  */
 package org.openhab.binding.ademco.internal.config;
 
+import org.eclipse.jdt.annotation.NonNullByDefault;
+
 /**
  * The {@link ZoneThingConfiguration} class contains fields mapping thing configuration parameters.
  *
  * @author WeeMin Chan - Initial contribution
  */
 
+@NonNullByDefault
 public class ZoneThingConfiguration {
 
     /**
@@ -26,5 +29,5 @@ public class ZoneThingConfiguration {
 
     public final static String ZONE_NUMBER = "zoneNumber";
 
-    public Integer zoneNumber;
+    public Integer zoneNumber = 0;
 }

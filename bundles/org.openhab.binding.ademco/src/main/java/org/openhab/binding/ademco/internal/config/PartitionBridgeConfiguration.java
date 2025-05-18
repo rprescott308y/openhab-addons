@@ -12,16 +12,19 @@
  */
 package org.openhab.binding.ademco.internal.config;
 
+import org.eclipse.jdt.annotation.NonNullByDefault;
+
 /**
  * The {@link PartitionBridgeConfiguration} class contains fields mapping thing configuration parameters.
  *
  * @author WeeMin Chan - Initial contribution
  */
 
+@NonNullByDefault
 public class PartitionBridgeConfiguration {
 
     public final static String PARTITION_NUMBER = "partitionNumber";
 
-    public int partitionNumber;
-    public String userCode;
+    public int partitionNumber = 1;
+    public String userCode = "";
 }

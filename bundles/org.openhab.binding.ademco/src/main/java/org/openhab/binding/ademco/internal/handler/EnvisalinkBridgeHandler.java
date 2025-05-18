@@ -25,7 +25,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 
-import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.binding.ademco.internal.config.EnvisalinkBridgeConfiguration;
 import org.openhab.binding.ademco.internal.discovery.AdemcoDiscoveryService;
 import org.openhab.core.thing.Bridge;
@@ -46,30 +47,32 @@ import org.slf4j.LoggerFactory;
  *
  * @author WeeMin Chan - Initial Contribution
  */
+@NonNullByDefault
 public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
 
     private Logger logger = LoggerFactory.getLogger(EnvisalinkBridgeHandler.class);
     private EnvisalinkBridgeConfiguration config;
 
     // Partition stuff
-    private PartitionBridgeHandler currentPartitionHandler;
+    private @Nullable PartitionBridgeHandler currentPartitionHandler;
     private short currentPartitionSelected = DEFAULT_PARTITION;
     private Map<Short, PartitionBridgeHandler> configuredPartitionHandler;
 
     private Boolean connected;
 
-    private Socket tcpSocket = null;
-    private PrintWriter tcpOutput = null;
-    private BufferedReader tcpInput = null;
+    private @Nullable Socket tcpSocket = null;
+    private @Nullable PrintWriter tcpOutput = null;
+    private @Nullable BufferedReader tcpInput = null;
     private EnvisalinkState bridgeState = EnvisalinkState.INIT;
 
-    private Integer receivedCommand;
+    private Integer receivedCommand = 0;
     private long lastSeen;
 
-    private ScheduledFuture<?> pollingJob = null;
+    private @Nullable ScheduledFuture<?> pollingJob = null;
 
+    @Nullable
     Thread tcpListenerThread;
-    private AdemcoDiscoveryService ademcoDiscoveryService;
+    private @Nullable AdemcoDiscoveryService ademcoDiscoveryService;
 
     /**
      * Constructor
@@ -91,9 +94,14 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
      */
     private String read() throws IOException {
         String message = "";
-        message = tcpInput.readLine();
-        logger.debug("read(): \"{}\"", message);
-        lastSeen = System.currentTimeMillis();
+        final BufferedReader localTcpInput = this.tcpInput;
+        if (localTcpInput != null) {
+            message = localTcpInput.readLine();
+            logger.debug("read(): \"{}\"", message);
+            lastSeen = System.currentTimeMillis();
+        } else {
+            logger.debug("No tcpInput Buffer Available.");
+        }
         return message;
     }
 
@@ -104,12 +112,17 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
      * @throws IOException
      */
     private void write(String writeString) throws IOException {
-        tcpOutput.println(writeString);
-        if (tcpOutput.checkError()) {
-            logger.warn("Bridge closing connection!");
-            throw new IOException(BRIDGE_CLOSE);
+        final PrintWriter localTcpOutput = this.tcpOutput;
+        if (localTcpOutput != null) {
+            localTcpOutput.println(writeString);
+            if (localTcpOutput.checkError()) {
+                logger.warn("Bridge closing connection!");
+                throw new IOException(BRIDGE_CLOSE);
+            }
+            logger.debug("write(): \"{}\"", writeString);
+        } else {
+            logger.debug("No tcp PrintWriter set.");
         }
-        logger.debug("write(): \"{}\"", writeString);
     }
 
     /**
@@ -121,16 +134,12 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
     private class tcpListener implements Runnable {
         @Override
         public void run() {
-            String messageLine;
+            String messageLine = "";
             connected = true;
             while (connected) {
                 try {
-                    if ((messageLine = read()) != null) {
-                        parseCommand(messageLine);
-                    } else {
-                        logger.warn("Got null from read");
-                        closeConnection(true);
-                    }
+                    messageLine = read();
+                    parseCommand(messageLine);
                 } catch (IOException e) {
                     logger.info("Error while reading from Envisalink");
                     closeConnection(true);
@@ -191,6 +200,7 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
      */
     private boolean parseCommand(String rawDataBytes) throws IOException {
         boolean isValidCommand = false;
+        final PartitionBridgeHandler localCurrentPartitionHandler = this.currentPartitionHandler;
         if (rawDataBytes.startsWith("%") && rawDataBytes.endsWith("$")) {
             isValidCommand = true;
             String dataBytes = rawDataBytes.substring(4, rawDataBytes.length() - 1);
@@ -201,8 +211,8 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
                     parseVirtualKeypadUpdate(dataBytes);
                     break;
                 case COMMAND_ZONESATECHANGE:
-                    if (this.currentPartitionHandler != null) {
-                        this.currentPartitionHandler.parseZoneStateChange(dataBytes);
+                    if (localCurrentPartitionHandler != null) {
+                        localCurrentPartitionHandler.parseZoneStateChange(dataBytes);
                     } else {
                         logger.warn("currentPartitionHandler is not configured");
                     }
@@ -214,8 +224,8 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
                     parseRealtimeCIDEvent(dataBytes);
                     break;
                 case COMMAND_ZONETIMERDUMP:
-                    if (this.currentPartitionHandler != null) {
-                        this.currentPartitionHandler.parseZoneTimerDump(dataBytes);
+                    if (localCurrentPartitionHandler != null) {
+                        localCurrentPartitionHandler.parseZoneTimerDump(dataBytes);
                     } else {
                         logger.warn("currentPartitionHandler is not configured");
                     }
@@ -241,7 +251,7 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
                 String command = rawDataBytes.substring(1, 3);
                 String status = rawDataBytes.substring(4, 6);
                 logger.debug("Command: {}, status: {}", command, status);
-                if (!command.equals("02")) {
+                if (!("02".equals(command))) {
                     nextState(EnvisalinkState.LOGIN);
                     commandACK();
                 }
@@ -321,13 +331,17 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
     private void parseVirtualKeypadUpdate(String data) {
         logger.debug("got input {}", data);
         Short partitionNumber = Short.parseShort(data.substring(0, 2));
+        final PartitionBridgeHandler localCurrentPartitionHandler = this.currentPartitionHandler;
+        final AdemcoDiscoveryService localAdemcoDiscoveryService = this.ademcoDiscoveryService;
         if (configuredPartitionHandler.containsKey(partitionNumber)) {
-            if (this.currentPartitionHandler != null) {
-                this.currentPartitionHandler.parseVirtualKeypadUpdate(data);
+            if (localCurrentPartitionHandler != null) {
+                localCurrentPartitionHandler.parseVirtualKeypadUpdate(data);
             }
         } else {
-            this.ademcoDiscoveryService.addParitionThing(partitionNumber, this.getThing());
-            logger.info("Partition {} read from EVL but unconfigured", partitionNumber);
+            if (localAdemcoDiscoveryService != null) {
+                localAdemcoDiscoveryService.addParitionThing(partitionNumber, this.getThing());
+                logger.info("Partition {} read from EVL but unconfigured", partitionNumber);
+            }
         }
     }
 
@@ -337,9 +351,10 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
      * @param initialPeriod time to start in minutes
      */
     private void startReconnectTimer() {
+        final ScheduledFuture<?> pollingJob = this.pollingJob;
         if (pollingJob != null) {
             pollingJob.cancel(true);
-            pollingJob = null;
+            this.pollingJob = null;
         }
         Runnable pollingRunnable = new Runnable() {
             @Override
@@ -350,17 +365,18 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
             }
         };
 
-        pollingJob = scheduler.scheduleWithFixedDelay(pollingRunnable, this.config.pollPeriod, this.config.pollPeriod,
-                TimeUnit.MINUTES);
+        this.pollingJob = scheduler.scheduleWithFixedDelay(pollingRunnable, this.config.pollPeriod,
+                this.config.pollPeriod, TimeUnit.MINUTES);
     }
 
     /**
      * Method to check connection of the bridge.
      */
     private void startCheckPulseTimer() {
+        final ScheduledFuture<?> pollingJob = this.pollingJob;
         if (pollingJob != null) {
             pollingJob.cancel(true);
-            pollingJob = null;
+            this.pollingJob = null;
         }
 
         Runnable pollingRunnable = new Runnable() {
@@ -369,8 +385,8 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
                 checkConnection();
             }
         };
-        pollingJob = scheduler.scheduleWithFixedDelay(pollingRunnable, this.config.pollPeriod, this.config.pollPeriod,
-                TimeUnit.MINUTES);
+        this.pollingJob = scheduler.scheduleWithFixedDelay(pollingRunnable, this.config.pollPeriod,
+                this.config.pollPeriod, TimeUnit.MINUTES);
     }
 
     /**
@@ -386,11 +402,13 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
     public void initialize() {
         config = getConfigAs(EnvisalinkBridgeConfiguration.class);
         try {
-            tcpSocket = new Socket(config.ipAddress, config.port);
+            final Socket tcpSocket = new Socket(config.ipAddress, config.port);
+            this.tcpSocket = tcpSocket;
             logger.debug("Socket accepted");
             tcpOutput = new PrintWriter(tcpSocket.getOutputStream(), true);
             tcpInput = new BufferedReader(new InputStreamReader(tcpSocket.getInputStream()));
-            tcpListenerThread = new Thread(new tcpListener());
+            final Thread tcpListenerThread = new Thread(new tcpListener());
+            this.tcpListenerThread = tcpListenerThread;
             tcpListenerThread.start();
             waitForACK();
             if (isCurrentState(EnvisalinkState.LOGIN)) {
@@ -464,23 +482,29 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
         try {
             if (connected) {
                 connected = false;
+                final Socket tcpSocket = this.tcpSocket;
                 if (tcpSocket != null) {
                     logger.debug("closeConnection(): Closing Socket!");
                     tcpSocket.close();
-                    tcpSocket = null;
+                    this.tcpSocket = null;
                 }
+                final BufferedReader tcpInput = this.tcpInput;
                 if (tcpInput != null) {
                     logger.debug("closeConnection(): Closing Output Writer!");
                     tcpInput.close();
-                    tcpInput = null;
+                    this.tcpInput = null;
                 }
+                final PrintWriter tcpOutput = this.tcpOutput;
                 if (tcpOutput != null) {
                     logger.debug("closeConnection(): Closing Input Reader!");
                     tcpOutput.close();
-                    tcpOutput = null;
+                    this.tcpOutput = null;
                 }
                 // Just for safety we wait for thread to end;
-                this.tcpListenerThread.join(config.connectionTimeout);
+                final Thread tcpListenerThread = this.tcpListenerThread;
+                if (tcpListenerThread != null) {
+                    tcpListenerThread.join(config.connectionTimeout);
+                }
                 logger.debug("closeConnection(): Closed TCP Connection!");
             }
             if (reconnect) {
@@ -489,9 +513,10 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
                         "Bridge lost connection check logs, attemping to reconnect.");
                 this.startReconnectTimer();
             } else {
+                final ScheduledFuture<?> pollingJob = this.pollingJob;
                 if (pollingJob != null) {
                     pollingJob.cancel(true);
-                    pollingJob = null;
+                    this.pollingJob = null;
                 }
             }
             nextState(EnvisalinkState.INIT);
@@ -599,7 +624,7 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
      * @see org.openhab.core.thing.binding.BaseThingHandler#handleConfigurationUpdate(java.util.Map)
      */
     @Override
-    public void handleConfigurationUpdate(Map<@NonNull String, @NonNull Object> configurationParameters) {
+    public void handleConfigurationUpdate(Map<String, Object> configurationParameters) {
         // ReRead and re-init.
         logger.debug("handleConfigurationUpdate called {}", configurationParameters.toString());
         super.handleConfigurationUpdate(configurationParameters);
@@ -625,12 +650,8 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
      * @param ademcoDiscoveryService2
      */
     public void registerDiscoveryService(AdemcoDiscoveryService ademcoDiscoveryService2) {
-        if (ademcoDiscoveryService2 == null) {
-            throw new IllegalArgumentException("registerDiscoveryService(): Illegal Argument. Not allowed to be Null!");
-        } else {
-            this.ademcoDiscoveryService = ademcoDiscoveryService2;
-            logger.trace("registerDiscoveryService(): Discovery Service Registered!");
-        }
+        this.ademcoDiscoveryService = ademcoDiscoveryService2;
+        logger.trace("registerDiscoveryService(): Discovery Service Registered!");
     }
 
     /**
@@ -644,7 +665,7 @@ public class EnvisalinkBridgeHandler extends BaseBridgeHandler {
     /**
      * @return the envisalinkBridgeDiscoveryService
      */
-    public AdemcoDiscoveryService getEnvisalinkBridgeDiscoveryService() {
+    public @Nullable AdemcoDiscoveryService getEnvisalinkBridgeDiscoveryService() {
         return ademcoDiscoveryService;
     }
 

@@ -22,7 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 
-import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.binding.ademco.internal.config.PartitionBridgeConfiguration;
 import org.openhab.binding.ademco.internal.discovery.AdemcoDiscoveryService;
 import org.openhab.core.library.types.DecimalType;
@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author WeeMin Chan - Initial contribution
  */
+@NonNullByDefault
 public class PartitionBridgeHandler extends BaseBridgeHandler {
 
     public PartitionBridgeHandler(Bridge bridge) {
@@ -267,7 +268,9 @@ public class PartitionBridgeHandler extends BaseBridgeHandler {
             if (envisalinkHandler != null) {
                 AdemcoDiscoveryService envisalinkBridgeDiscoveryService = envisalinkHandler
                         .getEnvisalinkBridgeDiscoveryService();
-                envisalinkBridgeDiscoveryService.addZoneThing(zone_index, this.getThing());
+                if (envisalinkBridgeDiscoveryService != null) {
+                    envisalinkBridgeDiscoveryService.addZoneThing(zone_index, this.getThing());
+                }
             } else {
                 logger.warn("Bridge Handler is not setup!");
             }
@@ -388,7 +391,7 @@ public class PartitionBridgeHandler extends BaseBridgeHandler {
      * @see org.openhab.core.thing.binding.BaseThingHandler#handleConfigurationUpdate(java.util.Map)
      */
     @Override
-    public void handleConfigurationUpdate(Map<@NonNull String, @NonNull Object> configurationParameters) {
+    public void handleConfigurationUpdate(Map<String, Object> configurationParameters) {
         logger.debug("PartitionHandler handling config update");
         this.config = this.getConfigAs(PartitionBridgeConfiguration.class);
         super.handleConfigurationUpdate(configurationParameters);

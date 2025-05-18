@@ -17,7 +17,7 @@ import static org.openhab.binding.ademco.internal.AdemcoConstants.*;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.openhab.binding.ademco.internal.config.PartitionBridgeConfiguration;
 import org.openhab.binding.ademco.internal.config.ZoneThingConfiguration;
 import org.openhab.binding.ademco.internal.handler.EnvisalinkBridgeHandler;
@@ -34,6 +34,8 @@ import org.slf4j.LoggerFactory;
  * @author Wee-Min Chan - Initial Contribution
  *
  */
+
+@NonNullByDefault
 public class AdemcoDiscoveryService extends AbstractDiscoveryService {
     private final Logger logger = LoggerFactory.getLogger(AdemcoDiscoveryService.class);
     private EnvisalinkBridgeHandler ademcoEnvisalinkBridge;
@@ -58,7 +60,7 @@ public class AdemcoDiscoveryService extends AbstractDiscoveryService {
         this.ademcoEnvisalinkBridge.unregisterDiscoveryService();
     }
 
-    public void addParitionThing(Short partitionNumber, @NonNull Bridge envisalinkBridge) {
+    public void addParitionThing(Short partitionNumber, Bridge envisalinkBridge) {
         String thingID = String.format("Partition%d", partitionNumber);
         logger.debug("Adding {} to inbox", thingID);
         Map<String, Object> properties = new HashMap<>(0);
@@ -68,7 +70,7 @@ public class AdemcoDiscoveryService extends AbstractDiscoveryService {
                 .withBridge(envisalinkBridge.getUID()).withLabel(thingID).build());
     }
 
-    public void addZoneThing(Integer zone_index, @NonNull Bridge partitionBridge) {
+    public void addZoneThing(Integer zone_index, Bridge partitionBridge) {
         String thingID = String.format("Zone%d", zone_index);
         logger.debug("Adding {} to inbox", thingID);
         Map<String, Object> properties = new HashMap<>(0);
